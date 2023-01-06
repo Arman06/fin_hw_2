@@ -1,7 +1,9 @@
+import tkinter
 from tkinter import Tk, Canvas, font
 from PIL import Image, ImageTk
 import math
 import random
+import time
 
 WIDTH = 800
 HEIGHT = 800
@@ -54,17 +56,17 @@ class MovingGameObject(GameObject):
     def update(self, toroidal=False, always_moving=True):
         if toroidal:
             if self.x < 0:
-                self.x = WIDTH - 10
-                self.redraw()
+                self.x += WIDTH - 10
+                self.canvas.move(self.id, WIDTH - 10, 0)
             elif self.x > WIDTH:
-                self.x = 0
-                self.redraw()
-            if self.y < 0:
-                self.y = HEIGHT - 10
-                self.redraw()
+                self.x -= WIDTH
+                self.canvas.move(self.id, -WIDTH, 0)
+            elif self.y < 0:
+                self.y += HEIGHT
+                self.canvas.move(self.id, 0, HEIGHT - 10)
             elif self.y > HEIGHT:
-                self.y = 0
-                self.redraw()
+                self.y -= HEIGHT
+                self.canvas.move(self.id, 0, -HEIGHT)
         else:
             if self.x < 0 or self.x > WIDTH or self.y < 0 or self.y > HEIGHT:
                 self.canvas.delete(self.id)
@@ -81,8 +83,7 @@ class Laser(MovingGameObject):
         destroyed = []
         super().move()
         coll_coords = self.canvas.find_overlapping(self.x, self.y, self.x + self.size[0] - 2, self.y + self.size[1] - 2)
-        print(coll_coords)
-        print(self.id)
+
         for coll_coord in coll_coords:
             if coll_coord != self.id and coll_coord not in self.game.untouchables and coll_coord != self.game.spaceship.id:
                 self.canvas.delete(coll_coord)
@@ -101,21 +102,20 @@ class Spaceship(MovingGameObject):
 
     def update(self, toroidal=False, always_moving=True):
         if self.x < 0:
-            self.x = WIDTH - 10
-            self.redraw()
-        elif self.x > WIDTH:
-            self.x = 0
-            self.redraw()
-        if self.y < 0:
-            self.y = HEIGHT - 10
-            self.redraw()
-        elif self.y > HEIGHT:
-            self.y = 0
-            self.redraw()
+            self.x += WIDTH - 10
+            self.canvas.move(self.id, WIDTH - 10, 0)
+        elif self.x > WIDTH - 10:
+            self.x -= WIDTH
+            self.canvas.move(self.id, -WIDTH, 0)
+        elif self.y < 0:
+            self.y += HEIGHT - 10
+            self.canvas.move(self.id, 0, HEIGHT - 10)
+        elif self.y > HEIGHT - 10:
+            self.y -= HEIGHT
+            self.canvas.move(self.id, 0, -HEIGHT)
         destroyed = []
         coll_coords = self.canvas.find_overlapping(self.x, self.y, self.x + self.size[0] / 3, self.y + self.size[1] / 3)
-        print(coll_coords)
-        print(self.id)
+
         for coll_coord in coll_coords:
             if coll_coord != self.id and coll_coord not in self.game.untouchables:
                 self.canvas.delete(coll_coord)
@@ -158,48 +158,49 @@ class Asteroid(MovingGameObject):
     def place_on_canvas(self, x, y):
         return self.canvas.create_image(self.x, self.y, image=self.image)
 
-    def crush(self):
-        self.canvas.delete(self.id)
-        self.state = 'destroyed'
-
 
 class Game:
     def __init__(self):
         self.score = 0
         self.lives = 3
         self.window = Tk()
+        self.window.title('Asteroids')
+        self.state = 'start'
 
         self.canvas = Canvas(self.window, width=WIDTH, height=HEIGHT)
 
         self.canvas.pack()
 
-        self.img = Image.open("assets/background.jpg")
-        self.img = self.img.resize((WIDTH, HEIGHT))
-        self.bg_img = ImageTk.PhotoImage(self.img)
+        img = Image.open("assets/background.jpg")
+        img = img.resize((WIDTH, HEIGHT))
+        self.bg_img = ImageTk.PhotoImage(img)
         self.bg = self.canvas.create_image(0, 0, image=self.bg_img, anchor="nw")
 
-        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='assets/spaceship2.png')
-        self.window.bind('<Left>', lambda event: self.spaceship.rotate(clockwise=False))
-        self.window.bind('<Right>', lambda event: self.spaceship.rotate())
+        img = Image.open("assets/start_screen.png")
+        img = img.resize((WIDTH // 2, HEIGHT // 2))
+        self.start_img = ImageTk.PhotoImage(img)
+        self.start_page = self.canvas.create_image(WIDTH / 2, HEIGHT / 2, image=self.start_img,
+                                                   anchor=tkinter.CENTER, tag='startTag')
+        self.canvas.tag_bind('startTag', '<ButtonPress-1>', lambda ev: self.on_start_click(ev))
 
-        self.window.bind('<Up>', lambda event: self.spaceship.move())
-        self.window.bind('<space>', lambda event: self.spaceship.fire_laser())
-
-        self.asteroids = set([Asteroid(self.canvas, random.randint(100, 700), random.randint(100, 700),
-                                       random.randint(0, 360), 1, (100, 100), self, img_name='assets/asteroid2.png')
-                              for _ in range(5)])
         helv36 = font.Font(family='Helvetica',
-                             size=36, weight='bold')
-        self.score_text = self.canvas.create_text(50, 50, anchor='nw', text=f'Score: {self.score}',
+                           size=36, weight='bold')
+        self.score_text = self.canvas.create_text(50, 50, anchor=tkinter.NW, text=f'Score: {self.score}',
                                                   fill="green", font=helv36)
-        self.lives_text = self.canvas.create_text(WIDTH - 50, 50, anchor='ne', text=f'Lives: {self.lives}',
+        self.lives_text = self.canvas.create_text(WIDTH - 50, 50, anchor=tkinter.NE, text=f'Lives: {self.lives}',
                                                   fill="green", font=helv36)
 
         self.canvas.tag_raise(self.score_text)
         self.canvas.tag_raise(self.lives_text)
-        self.untouchables = [self.score_text, self.lives_text, self.bg]
-        # self.canvas.itemconfigure(self.score_text, text='S')
-        
+        self.canvas.tag_lower(self.bg)
+        self.set_start()
+        self.untouchables = {self.score_text, self.lives_text, self.bg, self.start_page}
+        self.spaceship = None
+        self.asteroids = None
+
+    def on_start_click(self, event):
+        self.state = 'play'
+        self.canvas.itemconfig(self.start_page, state='hidden')
 
     def up_score(self):
         self.score += 1
@@ -208,9 +209,47 @@ class Game:
     def lower_lives(self):
         self.lives -= 1
         self.canvas.itemconfigure(self.lives_text, text=f'Lives: {self.lives}')
+        if self.lives <= 0:
+            self.set_start()
+
+    def set_start(self):
+        self.state = 'start'
+        self.lives = 3
+        self.score = 0
+        self.canvas.itemconfig(self.start_page, state='normal')
+        self.canvas.itemconfigure(self.score_text, text=f'Score: {self.score}')
+        self.canvas.itemconfigure(self.lives_text, text=f'Lives: {self.lives}')
+        self.canvas.tag_raise(self.start_page)
 
     def game_loop(self):
         while True:
+            if self.state == 'start':
+                self.canvas.update()
+            else:
+                self.actual_game()
+
+    def actual_game(self):
+        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='assets/spaceship2.png')
+        self.window.bind('<Left>', lambda event: self.spaceship.rotate(clockwise=False))
+        self.window.bind('<Right>', lambda event: self.spaceship.rotate())
+
+        self.window.bind('<Up>', lambda event: self.spaceship.move())
+        self.window.bind('<space>', lambda event: self.spaceship.fire_laser())
+        self.window.bind('<Escape>', lambda event: self.set_start())
+
+        self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH-100), random.randint(500, 700),
+                                       random.randint(0, 360), 2, (100, 100), self, img_name='assets/asteroid2.png')
+                              for _ in range(8)])
+
+        start_time = time.time()
+
+        while self.state == 'play':
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 3:
+                for _ in range(2):
+                    self.asteroids.add(Asteroid(self.canvas, random.randint(100, 700), random.randint(50, 100),
+                                       random.randint(0, 360), 2, (100, 100), self, img_name='assets/asteroid2.png'))
+                start_time = time.time()
             current_lasers = self.spaceship.lasers.copy()
             self.spaceship.lasers = set()
             destroyed_asteroids = set()
@@ -230,9 +269,15 @@ class Game:
                 asteroid.update(True)
                 if asteroid.id not in destroyed_asteroids:
                     self.asteroids.add(asteroid)
-
-
+            self.canvas.tag_raise(self.score_text)
+            self.canvas.tag_raise(self.lives_text)
             self.canvas.update()
+        for asteroid in self.asteroids:
+            self.canvas.delete(asteroid.id)
+        self.asteroids.clear()
+
+        self.canvas.delete(self.spaceship.id)
+        self.spaceship = None
 
     def start_screen(self):
         pass
