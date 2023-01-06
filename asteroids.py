@@ -1,29 +1,39 @@
-from tkinter import Tk, Canvas
+from tkinter import Tk, Canvas, font
 from PIL import Image, ImageTk
 import math
 import random
 
-WIDTH = 1000
+WIDTH = 800
 HEIGHT = 800
 
 
 class GameObject:
-    def __init__(self, canvas, x, y, angle, speed, size, game, color=None, img_name=None):
+    def __init__(self, canvas, x, y, size, game, img_name=None):
         self.canvas = canvas
         self.x = x
         self.y = y
-        self.angle = angle
-        self.speed = speed
         self.size = size
-        self.color = color
         self.game = game
-        self.state = 'alive'
-        if img_name:
-            self.img_name = img_name
+        self.img_name = img_name
+        if self.img_name:
             image = Image.open(self.img_name)
             image = image.resize(self.size)
-            image = image.rotate(self.angle)
             self.image = ImageTk.PhotoImage(image)
+
+
+class StaticGameObject(GameObject):
+    def __init__(self, canvas, x, y, size, game, img_name=None, text=None):
+        super().__init__(canvas, x, y, size, game, img_name)
+        self.text = text
+
+
+class MovingGameObject(GameObject):
+    def __init__(self, canvas, x, y, angle, speed, size, game, color=None, img_name=None):
+        super().__init__(canvas, x, y, size, game, img_name)
+        self.angle = angle
+        self.speed = speed
+        self.color = color
+        self.state = 'alive'
         self.id = self.place_on_canvas(self.x, self.y)
 
     def place_on_canvas(self, x, y):
@@ -63,7 +73,7 @@ class GameObject:
             return self.move()
 
 
-class Laser(GameObject):
+class Laser(MovingGameObject):
     def __init__(self, canvas, x, y, angle, speed, size, game):
         super().__init__(canvas, x, y, angle, speed, size, game, color='red')
 
@@ -74,19 +84,49 @@ class Laser(GameObject):
         print(coll_coords)
         print(self.id)
         for coll_coord in coll_coords:
-            if coll_coord != self.id and coll_coord != self.game.bg and coll_coord != self.game.spaceship.id:
+            if coll_coord != self.id and coll_coord not in self.game.untouchables and coll_coord != self.game.spaceship.id:
                 self.canvas.delete(coll_coord)
                 destroyed.append(coll_coord)
                 self.canvas.delete(self.id)
                 self.state = 'destroyed'
+                self.game.up_score()
                 break
         return destroyed
 
 
-class Spaceship(GameObject):
+class Spaceship(MovingGameObject):
     def __init__(self, canvas, x, y, angle, speed, size, game, img_name):
         super().__init__(canvas, x, y, angle, speed, size, game, img_name=img_name)
         self.lasers = set()
+
+    def update(self, toroidal=False, always_moving=True):
+        if self.x < 0:
+            self.x = WIDTH - 10
+            self.redraw()
+        elif self.x > WIDTH:
+            self.x = 0
+            self.redraw()
+        if self.y < 0:
+            self.y = HEIGHT - 10
+            self.redraw()
+        elif self.y > HEIGHT:
+            self.y = 0
+            self.redraw()
+        destroyed = []
+        coll_coords = self.canvas.find_overlapping(self.x, self.y, self.x + self.size[0] / 3, self.y + self.size[1] / 3)
+        print(coll_coords)
+        print(self.id)
+        for coll_coord in coll_coords:
+            if coll_coord != self.id and coll_coord not in self.game.untouchables:
+                self.canvas.delete(coll_coord)
+                destroyed.append(coll_coord)
+                self.x = WIDTH // 2
+                self.y = HEIGHT // 2
+                self.redraw()
+                # self.state = 'destroyed'
+                self.game.lower_lives()
+                break
+        return destroyed
 
     def rotate(self, clockwise=True):
         if clockwise:
@@ -111,7 +151,7 @@ class Spaceship(GameObject):
         self.lasers.add(Laser(self.canvas, self.x + dx, self.y + dy, self.angle, 5, (4, 4), self.game))
 
 
-class Asteroid(GameObject):
+class Asteroid(MovingGameObject):
     def __init__(self, canvas, x, y, angle, speed, size, game, img_name):
         super().__init__(canvas, x, y, angle, speed, size, game, img_name=img_name)
 
@@ -125,15 +165,20 @@ class Asteroid(GameObject):
 
 class Game:
     def __init__(self):
+        self.score = 0
+        self.lives = 3
         self.window = Tk()
+
         self.canvas = Canvas(self.window, width=WIDTH, height=HEIGHT)
+
         self.canvas.pack()
+
         self.img = Image.open("assets/background.jpg")
         self.img = self.img.resize((WIDTH, HEIGHT))
         self.bg_img = ImageTk.PhotoImage(self.img)
         self.bg = self.canvas.create_image(0, 0, image=self.bg_img, anchor="nw")
 
-        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='assets/spaceship.png')
+        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='assets/spaceship2.png')
         self.window.bind('<Left>', lambda event: self.spaceship.rotate(clockwise=False))
         self.window.bind('<Right>', lambda event: self.spaceship.rotate())
 
@@ -141,7 +186,28 @@ class Game:
         self.window.bind('<space>', lambda event: self.spaceship.fire_laser())
 
         self.asteroids = set([Asteroid(self.canvas, random.randint(100, 700), random.randint(100, 700),
-                                       random.randint(0, 360), 1, (100, 100), self, img_name='assets/asteroid.png') for _ in range(5)])
+                                       random.randint(0, 360), 1, (100, 100), self, img_name='assets/asteroid2.png')
+                              for _ in range(5)])
+        helv36 = font.Font(family='Helvetica',
+                             size=36, weight='bold')
+        self.score_text = self.canvas.create_text(50, 50, anchor='nw', text=f'Score: {self.score}',
+                                                  fill="green", font=helv36)
+        self.lives_text = self.canvas.create_text(WIDTH - 50, 50, anchor='ne', text=f'Lives: {self.lives}',
+                                                  fill="green", font=helv36)
+
+        self.canvas.tag_raise(self.score_text)
+        self.canvas.tag_raise(self.lives_text)
+        self.untouchables = [self.score_text, self.lives_text, self.bg]
+        # self.canvas.itemconfigure(self.score_text, text='S')
+        
+
+    def up_score(self):
+        self.score += 1
+        self.canvas.itemconfigure(self.score_text, text=f'Score: {self.score}')
+
+    def lower_lives(self):
+        self.lives -= 1
+        self.canvas.itemconfigure(self.lives_text, text=f'Lives: {self.lives}')
 
     def game_loop(self):
         while True:
@@ -155,15 +221,21 @@ class Game:
                 if laser.state == 'alive':
                     self.spaceship.lasers.add(laser)
 
+            for asteroid in self.spaceship.update():
+                destroyed_asteroids.add(asteroid)
+
             current_asteroids = self.asteroids.copy()
             self.asteroids = set()
             for asteroid in current_asteroids:
                 asteroid.update(True)
                 if asteroid.id not in destroyed_asteroids:
                     self.asteroids.add(asteroid)
-            self.spaceship.update(True, False)
+
 
             self.canvas.update()
+
+    def start_screen(self):
+        pass
 
 
 def main():
