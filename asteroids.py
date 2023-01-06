@@ -69,11 +69,7 @@ class Laser(GameObject):
 
     def move(self):
         destroyed = []
-        dx = math.cos(math.radians(self.angle)) * self.speed
-        dy = -math.sin(math.radians(self.angle)) * self.speed
-        self.canvas.move(self.id, dx, dy)
-        self.x += dx
-        self.y += dy
+        super().move()
         coll_coords = self.canvas.find_overlapping(self.x, self.y, self.x + self.size[0] - 2, self.y + self.size[1] - 2)
         print(coll_coords)
         print(self.id)
@@ -118,15 +114,6 @@ class Spaceship(GameObject):
 class Asteroid(GameObject):
     def __init__(self, canvas, x, y, angle, speed, size, game, img_name):
         super().__init__(canvas, x, y, angle, speed, size, game, img_name=img_name)
-
-    def move(self):
-        if bool(random.getrandbits(1)):
-            self.angle -= 1
-        else:
-            self.angle += 1
-        self.angle %= 360
-        super().move()
-        # self.redraw()
 
     def place_on_canvas(self, x, y):
         return self.canvas.create_image(self.x, self.y, image=self.image)
