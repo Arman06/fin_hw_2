@@ -7,36 +7,56 @@ import time
 
 WIDTH = 800
 HEIGHT = 800
+LIVES = 3
 
 
 class GameObject:
-    def __init__(self, canvas, x, y, size, game, img_name=None):
+    def __init__(self, canvas, x, y, size, game, img_name=None, color=None):
         self.canvas = canvas
         self.x = x
         self.y = y
         self.size = size
+        self.color = color
         self.game = game
         self.img_name = img_name
         if self.img_name:
             image = Image.open(self.img_name)
             image = image.resize(self.size)
             self.image = ImageTk.PhotoImage(image)
+        self.id = self.place_on_canvas(self.x, self.y)
+
+    def place_on_canvas(self, x, y):
+        pass
 
 
 class StaticGameObject(GameObject):
-    def __init__(self, canvas, x, y, size, game, img_name=None, text=None):
-        super().__init__(canvas, x, y, size, game, img_name)
+    def __init__(self, canvas, x, y, size, game, img_name=None, text=None, tag=None, anchor=None,
+                 font_obj=None, color=None):
         self.text = text
+        self.tag = tag
+        self.anchor = anchor
+        self.font = font_obj
+        super().__init__(canvas, x, y, size, game, img_name, color)
+
+    def place_on_canvas(self, x, y):
+        if self.img_name:
+            return self.canvas.create_image(self.x, self.y, image=self.image, tag=self.tag, anchor=self.anchor)
+        else:
+            return self.canvas.create_text(self.x, self.y, anchor=self.anchor, text=self.text,
+                                           fill=self.color, font=self.font)
+
+    def change_text(self, text):
+        self.canvas.itemconfigure(self.id, text=text)
 
 
 class MovingGameObject(GameObject):
     def __init__(self, canvas, x, y, angle, speed, size, game, color=None, img_name=None):
-        super().__init__(canvas, x, y, size, game, img_name)
         self.angle = angle
         self.speed = speed
-        self.color = color
         self.state = 'alive'
-        self.id = self.place_on_canvas(self.x, self.y)
+        super().__init__(canvas, x, y, size, game, img_name, color)
+
+        # self.id = self.place_on_canvas(self.x, self.y)
 
     def place_on_canvas(self, x, y):
         return self.canvas.create_rectangle(x - self.size[0], y - self.size[1],
@@ -162,7 +182,7 @@ class Asteroid(MovingGameObject):
 class Game:
     def __init__(self):
         self.score = 0
-        self.lives = 3
+        self.lives = LIVES
         self.window = Tk()
         self.window.title('Asteroids')
         self.state = 'start'
@@ -171,55 +191,58 @@ class Game:
 
         self.canvas.pack()
 
-        img = Image.open("assets/background.jpg")
-        img = img.resize((WIDTH, HEIGHT))
-        self.bg_img = ImageTk.PhotoImage(img)
-        self.bg = self.canvas.create_image(0, 0, image=self.bg_img, anchor="nw")
+        self.bg = StaticGameObject(self.canvas, 0, 0, (WIDTH, HEIGHT), self, img_name="./assets/background.jpg",
+                                   anchor=tkinter.NW)
 
-        img = Image.open("assets/start_screen.png")
-        img = img.resize((WIDTH // 2, HEIGHT // 2))
-        self.start_img = ImageTk.PhotoImage(img)
-        self.start_page = self.canvas.create_image(WIDTH / 2, HEIGHT / 2, image=self.start_img,
-                                                   anchor=tkinter.CENTER, tag='startTag')
+        self.start_page = StaticGameObject(self.canvas, WIDTH // 2, HEIGHT // 2, (WIDTH // 2, HEIGHT // 2), self,
+                                           img_name="./assets/start_screen.png", tag='startTag', anchor=tkinter.CENTER)
+
         self.canvas.tag_bind('startTag', '<ButtonPress-1>', lambda ev: self.on_start_click(ev))
 
         helv36 = font.Font(family='Helvetica',
                            size=36, weight='bold')
-        self.score_text = self.canvas.create_text(50, 50, anchor=tkinter.NW, text=f'Score: {self.score}',
-                                                  fill="green", font=helv36)
-        self.lives_text = self.canvas.create_text(WIDTH - 50, 50, anchor=tkinter.NE, text=f'Lives: {self.lives}',
-                                                  fill="green", font=helv36)
 
-        self.canvas.tag_raise(self.score_text)
-        self.canvas.tag_raise(self.lives_text)
-        self.canvas.tag_lower(self.bg)
+        self.score_text = StaticGameObject(self.canvas, 50, 50, anchor=tkinter.NW, text=f'Score: {self.score}',
+                                           color="green", font_obj=helv36, game=self, size=None)
+
+        self.lives_text = StaticGameObject(self.canvas, WIDTH - 50, 50, anchor=tkinter.NE, text=f'Lives: {self.lives}',
+                                           color="green", font_obj=helv36, game=self, size=None)
+
+        # self.score_text = self.canvas.create_text(50, 50, anchor=tkinter.NW, text=f'Score: {self.score}',
+        #                                           fill="green", font=helv36)
+        # self.lives_text = self.canvas.create_text(WIDTH - 50, 50, anchor=tkinter.NE, text=f'Lives: {self.lives}',
+        #                                           fill="green", font=helv36)
+
+        self.canvas.tag_raise(self.score_text.id)
+        self.canvas.tag_raise(self.lives_text.id)
+        self.canvas.tag_lower(self.bg.id)
         self.set_start()
-        self.untouchables = {self.score_text, self.lives_text, self.bg, self.start_page}
+        self.untouchables = {self.score_text.id, self.lives_text.id, self.bg.id, self.start_page.id}
         self.spaceship = None
         self.asteroids = None
 
     def on_start_click(self, event):
         self.state = 'play'
-        self.canvas.itemconfig(self.start_page, state='hidden')
+        self.canvas.itemconfig(self.start_page.id, state='hidden')
 
     def up_score(self):
         self.score += 1
-        self.canvas.itemconfigure(self.score_text, text=f'Score: {self.score}')
+        self.score_text.change_text(f'Score: {self.score}')
 
     def lower_lives(self):
         self.lives -= 1
-        self.canvas.itemconfigure(self.lives_text, text=f'Lives: {self.lives}')
+        self.lives_text.change_text(f'Lives: {self.lives}')
         if self.lives <= 0:
             self.set_start()
 
     def set_start(self):
         self.state = 'start'
-        self.lives = 3
+        self.lives = LIVES
         self.score = 0
-        self.canvas.itemconfig(self.start_page, state='normal')
-        self.canvas.itemconfigure(self.score_text, text=f'Score: {self.score}')
-        self.canvas.itemconfigure(self.lives_text, text=f'Lives: {self.lives}')
-        self.canvas.tag_raise(self.start_page)
+        self.canvas.itemconfig(self.start_page.id, state='normal')
+        self.score_text.change_text(f'Score: {self.score}')
+        self.lives_text.change_text(f'Lives: {self.lives}')
+        self.canvas.tag_raise(self.start_page.id)
 
     def game_loop(self):
         while True:
@@ -229,7 +252,7 @@ class Game:
                 self.actual_game()
 
     def actual_game(self):
-        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='assets/spaceship2.png')
+        self.spaceship = Spaceship(self.canvas, 500, 300, 0, 15, (100, 100), self, img_name='./assets/spaceship2.png')
         self.window.bind('<Left>', lambda event: self.spaceship.rotate(clockwise=False))
         self.window.bind('<Right>', lambda event: self.spaceship.rotate())
 
@@ -238,7 +261,7 @@ class Game:
         self.window.bind('<Escape>', lambda event: self.set_start())
 
         self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH-100), random.randint(500, 700),
-                                       random.randint(0, 360), 2, (100, 100), self, img_name='assets/asteroid2.png')
+                                       random.randint(0, 360), 2, (100, 100), self, img_name='./assets/asteroid2.png')
                               for _ in range(8)])
 
         start_time = time.time()
@@ -248,7 +271,7 @@ class Game:
             if elapsed_time > 3:
                 for _ in range(2):
                     self.asteroids.add(Asteroid(self.canvas, random.randint(100, 700), random.randint(50, 100),
-                                       random.randint(0, 360), 2, (100, 100), self, img_name='assets/asteroid2.png'))
+                                       random.randint(0, 360), 2, (100, 100), self, img_name='./assets/asteroid2.png'))
                 start_time = time.time()
             current_lasers = self.spaceship.lasers.copy()
             self.spaceship.lasers = set()
@@ -269,14 +292,18 @@ class Game:
                 asteroid.update(True)
                 if asteroid.id not in destroyed_asteroids:
                     self.asteroids.add(asteroid)
-            self.canvas.tag_raise(self.score_text)
-            self.canvas.tag_raise(self.lives_text)
+            self.canvas.tag_raise(self.score_text.id)
+            self.canvas.tag_raise(self.lives_text.id)
             self.canvas.update()
+
         for asteroid in self.asteroids:
             self.canvas.delete(asteroid.id)
         self.asteroids.clear()
 
         self.canvas.delete(self.spaceship.id)
+        for laser in self.spaceship.lasers:
+            self.canvas.delete(laser.id)
+        self.spaceship.lasers.clear()
         self.spaceship = None
 
     def start_screen(self):
