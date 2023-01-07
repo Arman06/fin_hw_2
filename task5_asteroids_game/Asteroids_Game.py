@@ -30,8 +30,7 @@ class Game:
                                    anchor=tkinter.NW)
 
         self.start_page = StaticGameObject(self.canvas, WIDTH // 2, HEIGHT // 2, (WIDTH // 2, HEIGHT // 2), self,
-                                           img_name=self.get_path(self.images['start_page']), tag='startTag',
-                                           anchor=tkinter.CENTER)
+                                           img_name=self.get_path(self.images['start_page']), tag='startTag', anchor=tkinter.CENTER)
 
         self.canvas.tag_bind('startTag', '<ButtonPress-1>', lambda ev: self.on_start_click(ev))
 
@@ -78,9 +77,25 @@ class Game:
     def game_loop(self):
         while True:
             if self.state == 'start':
-                self.canvas.update()
+                self.start_screen()
             else:
                 self.actual_game()
+
+    def start_screen(self):
+        self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH), random.randint(0, HEIGHT),
+                                       180, 5,
+                                       (50, 50), self,
+                                       img_name=self.get_path(self.images['asteroid'])) for _ in range(25)])
+        while self.state == 'start':
+            for asteroid in self.asteroids:
+                asteroid.update(toroidal=True)
+            self.canvas.tag_raise(self.start_page.id)
+            self.canvas.tag_raise(self.score_text.id)
+            self.canvas.tag_raise(self.lives_text.id)
+            self.canvas.update()
+        for asteroid in self.asteroids:
+            self.canvas.delete(asteroid.id)
+        self.asteroids.clear()
 
     def actual_game(self):
         self.spaceship = Spaceship(self.canvas, WIDTH // 2, HEIGHT // 2, 0, 2.5, (150, 150), self,
@@ -93,6 +108,7 @@ class Game:
         self.window.bind('<space>', lambda event: self.spaceship.fire_laser())
         self.window.bind('<Escape>', lambda event: self.set_start())
 
+        print(self.asteroids)
         self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH-100), random.randint(30, 100),
                                        random.randint(0, 360), 2, (100, 100), self, img_name=self.get_path(
                 self.images['asteroid']))
@@ -103,7 +119,7 @@ class Game:
         while self.state == 'play':
             elapsed_time = time.time() - start_time
             if elapsed_time > 3:
-                for _ in range(1):
+                for _ in range(3):
                     self.asteroids.add(Asteroid(self.canvas, random.randint(100, 700), random.randint(50, 100),
                                                 random.randint(0, 360), 2, (100, 100), self, img_name=self.get_path(
                             self.images['asteroid'])))
@@ -124,7 +140,7 @@ class Game:
             current_asteroids = self.asteroids.copy()
             self.asteroids = set()
             for asteroid in current_asteroids:
-                asteroid.update(True)
+                asteroid.update(toroidal=True)
                 if asteroid.id not in destroyed_asteroids:
                     self.asteroids.add(asteroid)
             self.canvas.tag_raise(self.score_text.id)
