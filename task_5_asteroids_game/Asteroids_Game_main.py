@@ -2,7 +2,8 @@ import random
 import time
 import tkinter
 from tkinter import Tk, Canvas, font
-
+import os
+from pathlib import Path
 from GameObjects import *
 from Spaceship import Spaceship
 from Asteroid import Asteroid
@@ -11,20 +12,26 @@ from Asteroid import Asteroid
 class Game:
     def __init__(self):
         self.score = 0
+        self.resistance = 0.05
         self.lives = LIVES
         self.window = Tk()
         self.window.title('Asteroids')
         self.state = 'start'
+        self.images = {'background': './assets/background.jpg', 'start_page': 'assets/start_screen.png',
+                       'spaceship': 'assets/spaceship2.png', 'asteroid': 'assets/asteroid2.png',
+                       'missile': 'assets/missile2.png', 'moving_spaceship': 'assets/spaceship2_moving.png'}
 
         self.canvas = Canvas(self.window, width=WIDTH, height=HEIGHT)
 
         self.canvas.pack()
 
-        self.bg = StaticGameObject(self.canvas, 0, 0, (WIDTH, HEIGHT), self, img_name="./assets/background.jpg",
+        self.bg = StaticGameObject(self.canvas, 0, 0, (WIDTH, HEIGHT), self, img_name=self.get_path(
+            self.images['background']),
                                    anchor=tkinter.NW)
 
         self.start_page = StaticGameObject(self.canvas, WIDTH // 2, HEIGHT // 2, (WIDTH // 2, HEIGHT // 2), self,
-                                           img_name="./assets/start_screen.png", tag='startTag', anchor=tkinter.CENTER)
+                                           img_name=self.get_path(self.images['start_page']), tag='startTag',
+                                           anchor=tkinter.CENTER)
 
         self.canvas.tag_bind('startTag', '<ButtonPress-1>', lambda ev: self.on_start_click(ev))
 
@@ -76,37 +83,40 @@ class Game:
                 self.actual_game()
 
     def actual_game(self):
-        self.spaceship = Spaceship(self.canvas, WIDTH // 2, HEIGHT // 2, 0, 15, (100, 100), self,
-                                   img_name='./assets/spaceship2.png')
+        self.spaceship = Spaceship(self.canvas, WIDTH // 2, HEIGHT // 2, 0, 2.5, (150, 150), self,
+                                   still_img_name=self.get_path(self.images['spaceship']),
+                                   moving_img_name=self.get_path(self.images['moving_spaceship']))
         self.window.bind('<Left>', lambda event: self.spaceship.rotate(clockwise=False))
         self.window.bind('<Right>', lambda event: self.spaceship.rotate())
 
-        self.window.bind('<Up>', lambda event: self.spaceship.move())
+        self.window.bind('<Up>', lambda event: self.spaceship.move_forward())
         self.window.bind('<space>', lambda event: self.spaceship.fire_laser())
         self.window.bind('<Escape>', lambda event: self.set_start())
 
-        self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH-100), random.randint(500, 700),
-                                       random.randint(0, 360), 2, (100, 100), self, img_name='./assets/asteroid2.png')
-                              for _ in range(8)])
+        self.asteroids = set([Asteroid(self.canvas, random.randint(0, WIDTH-100), random.randint(30, 100),
+                                       random.randint(0, 360), 2, (100, 100), self, img_name=self.get_path(
+                self.images['asteroid']))
+                              for _ in range(5)])
 
         start_time = time.time()
 
         while self.state == 'play':
             elapsed_time = time.time() - start_time
             if elapsed_time > 3:
-                for _ in range(2):
+                for _ in range(1):
                     self.asteroids.add(Asteroid(self.canvas, random.randint(100, 700), random.randint(50, 100),
-                                       random.randint(0, 360), 2, (100, 100), self, img_name='./assets/asteroid2.png'))
+                                                random.randint(0, 360), 2, (100, 100), self, img_name=self.get_path(
+                            self.images['asteroid'])))
                 start_time = time.time()
-            current_lasers = self.spaceship.lasers.copy()
-            self.spaceship.lasers = set()
+            current_rockets = set()
             destroyed_asteroids = set()
 
-            for laser in current_lasers:
-                for asteroid in laser.update():
+            for rocket in self.spaceship.rockets:
+                for asteroid in rocket.update():
                     destroyed_asteroids.add(asteroid)
-                if laser.state == 'alive':
-                    self.spaceship.lasers.add(laser)
+                if rocket.state == 'alive':
+                    current_rockets.add(rocket)
+            self.spaceship.rockets = current_rockets
 
             for asteroid in self.spaceship.update():
                 destroyed_asteroids.add(asteroid)
@@ -126,13 +136,13 @@ class Game:
         self.asteroids.clear()
 
         self.canvas.delete(self.spaceship.id)
-        for laser in self.spaceship.lasers:
-            self.canvas.delete(laser.id)
-        self.spaceship.lasers.clear()
+        for rocket in self.spaceship.rockets:
+            self.canvas.delete(rocket.id)
+        self.spaceship.rockets.clear()
         self.spaceship = None
 
-    def start_screen(self):
-        pass
+    def get_path(self, file_path):
+        return os.path.join(os.path.dirname(Path(__file__).absolute()), file_path)
 
 
 def main():

@@ -49,8 +49,6 @@ class MovingGameObject(GameObject):
         self.state = 'alive'
         super().__init__(canvas, x, y, size, game, img_name, color)
 
-        # self.id = self.place_on_canvas(self.x, self.y)
-
     def place_on_canvas(self, x, y):
         return self.canvas.create_rectangle(x - self.size[0], y - self.size[1],
                                             x + self.size[0], y + self.size[1], fill=self.color)
