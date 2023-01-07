@@ -33,8 +33,8 @@ class Rain:
 
         for i in range(n):
             x = random.randint(0, WIDTH)
-            y = random.randint(-HEIGHT, 0)
-            length = random.randint(20, 70)
+            y = random.randint(-HEIGHT, 100)
+            length = random.randint(20, 40)
             speed = 1.3
             raindrop = Raindrop(canvas, x, y, length, speed)
             self.raindrops.append(raindrop)
