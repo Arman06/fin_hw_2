@@ -6,7 +6,7 @@ import random
 import time
 
 WIDTH = 800
-HEIGHT = 800
+HEIGHT = 400
 LIVES = 3
 
 
@@ -148,7 +148,7 @@ class Spaceship(MovingGameObject):
                 self.canvas.delete(coll_coord)
                 destroyed.append(coll_coord)
                 self.x = WIDTH // 2
-                self.y = WIDTH - 10
+                self.y = HEIGHT - 10
                 self.redraw()
                 self.game.lower_lives()
                 break

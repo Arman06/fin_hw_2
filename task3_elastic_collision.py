@@ -28,10 +28,10 @@ class Ball:
             self.dy = 0
             self.bounce_up()
         if self.x >= WIDTH - self.size:
-            self.dx = 0
+            self.dx = -self.size / 2
             self.bounce_left()
         elif self.x <= self.size:
-            self.dx = 0
+            self.dx = self.size / 2
             self.bounce_right()
         self.x += self.dx
         self.y += self.dy
@@ -54,6 +54,10 @@ class Ball:
     def bounce_left(self):
         self.energy_x -= 0.1
         self.dx -= self.acceleration / 2 * self.energy_x
+
+    def kick_up(self):
+        self.energy_y += 0.2
+        self.dy -= gravity * 50 * self.energy_y
 
     def bounce_up(self):
         if 50 * self.energy_y > gravity:
@@ -78,6 +82,7 @@ def main():
 
     window.bind('<Left>', lambda event: ball.wind_left())
     window.bind('<Right>', lambda event: ball.wind_right())
+    window.bind('<Up>', lambda event: ball.kick_up())
 
     while True:
 
